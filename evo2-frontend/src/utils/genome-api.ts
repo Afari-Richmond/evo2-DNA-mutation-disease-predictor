@@ -1,6 +1,8 @@
 import { Viaoda_Libre } from "next/font/google";
 import { env } from "~/env";
 
+// --- Interfaces ---
+
 export interface GenomeAssemblyFromSearch {
   id: string;
   name: string;
@@ -65,6 +67,11 @@ export interface AnalysisResult {
   classification_confidence: number;
 }
 
+// --- API Functions ---
+
+/**
+ * Fetches a list of available genome assemblies from UCSC.
+ */
 export async function getAvailableGenomes() {
   const apiUrl = "https://api.genome.ucsc.edu/list/ucscGenomes";
   const response = await fetch(apiUrl);
@@ -96,6 +103,9 @@ export async function getAvailableGenomes() {
   return { genomes: structuredGenomes };
 }
 
+/**
+ * Fetches chromosomes for a specific genome ID.
+ */
 export async function getGenomeChromosomes(genomeId: string) {
   const apiUrl = `https://api.genome.ucsc.edu/list/chromosomes?genome=${genomeId}`;
   const response = await fetch(apiUrl);
@@ -122,7 +132,6 @@ export async function getGenomeChromosomes(genomeId: string) {
     });
   }
 
-  // chr1, chr2, ... chrX, chrY
   chromosomes.sort((a, b) => {
     const anum = a.name.replace("chr", "");
     const bnum = b.name.replace("chr", "");
@@ -137,6 +146,9 @@ export async function getGenomeChromosomes(genomeId: string) {
   return { chromosomes };
 }
 
+/**
+ * Searches for genes using the NCBI Clinical Tables API.
+ */
 export async function searchGenes(query: string, genome: string) {
   const url = "https://clinicaltables.nlm.nih.gov/api/ncbi_genes/v3/search";
   const params = new URLSearchParams({
@@ -180,6 +192,9 @@ export async function searchGenes(query: string, genome: string) {
   return { query, genome, results };
 }
 
+/**
+ * Fetches detailed gene information and calculates sequence range.
+ */
 export async function fetchGeneDetails(geneId: string): Promise<{
   geneDetails: GeneDetailsFromSearch | null;
   geneBounds: GeneBounds | null;
@@ -223,6 +238,9 @@ export async function fetchGeneDetails(geneId: string): Promise<{
   }
 }
 
+/**
+ * Fetches DNA sequence from UCSC for a given range.
+ */
 export async function fetchGeneSequence(
   chrom: string,
   start: number,
@@ -261,6 +279,9 @@ export async function fetchGeneSequence(
   }
 }
 
+/**
+ * Searches ClinVar for variants within specific gene bounds.
+ */
 export async function fetchClinvarVariants(
   chrom: string,
   geneBound: GeneBounds,
@@ -350,6 +371,10 @@ export async function fetchClinvarVariants(
   return variants;
 }
 
+/**
+ * UPDATED: Analyzes a variant by sending a POST request with a JSON body
+ * to the Evo2 backend hosted on Modal.
+ */
 export async function analyzeVariantWithAPI({
   position,
   alternative,
@@ -361,20 +386,31 @@ export async function analyzeVariantWithAPI({
   genomeId: string;
   chromosome: string;
 }): Promise<AnalysisResult> {
-  const queryParams = new URLSearchParams({
-    variant_position: position.toString(),
-    alternative: alternative,
-    genome: genomeId,
-    chromosome: chromosome,
+  const baseUrl = env.NEXT_PUBLIC_ANALYZE_SINGLE_VARIANT_BASE_URL;
+
+  if (!baseUrl) {
+    throw new Error(
+      "Missing NEXT_PUBLIC_ANALYZE_SINGLE_VARIANT_BASE_URL environment variable",
+    );
+  }
+
+  // Use POST with a JSON body to avoid 422 errors and match FastAPI's Pydantic model
+  const response = await fetch(baseUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      variant_position: position,
+      alternative: alternative,
+      genome: genomeId,
+      chromosome: chromosome,
+    }),
   });
-
-  const url = `${env.NEXT_PUBLIC_ANALYZE_SINGLE_VARIANT_BASE_URL}?${queryParams.toString()}`;
-
-  const response = await fetch(url, { method: "POST" });
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error("Failed to analyze variant " + errorText);
+    throw new Error("Failed to analyze variant: " + errorText);
   }
 
   return await response.json();
