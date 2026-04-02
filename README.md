@@ -75,7 +75,7 @@ Author
 
 Richmond Addo Afari
 Computer Science Graduate
-Interested in AI, Cloud Engineering, and Applied Machine Learning
+Interested in AI, Cloud Engineering, and Applied Computing
 
 Final Note
 
